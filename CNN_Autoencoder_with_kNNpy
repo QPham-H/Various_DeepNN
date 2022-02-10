@@ -1,5 +1,5 @@
 """
-CNN Autoencoder with kNN for querying Devanagiri symbols
+CNN Autoencoder with kNN for querying Devanagiri letters
 Coded by Quoc Pham
 02/2022
 """
