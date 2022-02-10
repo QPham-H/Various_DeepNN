@@ -9,12 +9,9 @@ import os
 
 
 from tensorflow.keras.models import Sequential, Model
-from tensorflow.keras.layers import Input, Dense, Flatten, Conv2D, Conv2DTranspose, MaxPooling2D, Reshape, UpSampling2D
-from tensorflow.keras.losses import CategoricalCrossentropy
-from tensorflow.keras.optimizers import Adam
-from sklearn.model_selection import StratifiedKFold, train_test_split
+from tensorflow.keras.layers import Input, BatchNormalization, Dense, Flatten, Conv2D, Conv2DTranspose, MaxPooling2D, Reshape, UpSampling2D
+from sklearn.model_selection import train_test_split
 from sklearn.neighbors import NearestNeighbors
-from sklearn.preprocessing import LabelEncoder
 
 
 # csv file with 3073 columns, column 1 is label and image is 32x32x3
@@ -32,11 +29,6 @@ labels = data.pop('label')
 labels = labels.to_numpy()
 labels = labels[1:] # First row is a header
 
-# Use Labelencoder to convert to numerical encoding to run the model on (not for autoencoder function)
-lencoder = LabelEncoder()
-labels = lencoder.fit_transform(labels)
-#print(f'Labels shape: {labels.shape}')
-
 data_rows = data.shape[0]
 images = []
 for i in range(1,data_rows):
@@ -48,8 +40,6 @@ for i in range(1,data_rows):
     images.append(img)
 
 images = np.array(images)
-#images = images.reshape(-1,32,32,1)
-
 #print(f'Images shape: {len(images)}')
 
 ##cv2.imshow("image",images[0])
@@ -62,14 +52,16 @@ print(f'Train data shape: {train_data.shape}')
 print(f'Test data shape: {test_data.shape}')
 
 BATCH = 32
-EPOCHS = 1
+EPOCHS = 1 # For testing
 
 # Build the model
 def build_model():
     input_layer = Input(shape=(32,32,1)) # The 32x32 size of the original input is pretty small so we will keep filters at 8
     x = Conv2D(8,(3,3),activation='relu',padding='same')(input_layer) # Padding is the same throughout so output size matches image sizes for training the autoencoder (squeeze it then expand it to see if it encodes well)
+    #x = BatchNormalization()(x)
     x = MaxPooling2D(2)(x)
     x = Conv2D(16,(3,3),activation='relu',padding='same')(x)
+    #x = BatchNormalization()(x)
     encoded = MaxPooling2D(2, name='encoder')(x)
 
     x = Conv2DTranspose(8,(3,3),activation='relu',padding='same')(encoded)
