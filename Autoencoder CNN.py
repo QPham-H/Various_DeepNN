@@ -81,29 +81,6 @@ def build_model():
     print(model.summary())
 
     return model
-"""
-def build_model():
-    input_layer = Input(shape=(32,32,1)) # The 32x32 size of the original input is pretty small so we will keep filters at 8
-    x = Conv2D(8,(3,3),activation='relu',padding='same')(input_layer) # Padding is the same throughout so output size matches image sizes for training the autoencoder (squeeze it then expand it to see if it encodes well)
-    x = MaxPooling2D((2,2),padding='same')(x)
-    x = Conv2D(8,(3,3),activation='relu',padding='same')(x)
-    x = MaxPooling2D((2,2),padding='same')(x)
-    x = Conv2D(8,(3,3),activation='relu',padding='same')(x)
-    encoded = MaxPooling2D((2,2),padding='same',name='encoder')(x)
-
-    x = Conv2D(8,(3,3),activation='relu',padding='same')(encoded)
-    x = UpSampling2D((2,2))(x)
-    x = Conv2D(8,(3,3),activation='relu',padding='same')(x)
-    x = UpSampling2D((2,2))(x)
-    x = Conv2D(8,(3,3),activation='relu',padding='same')(x)
-    x = UpSampling2D((2,2))(x)
-    out = Conv2D(1,(3,3),activation='sigmoid',padding='same')(x)
-
-    model = Model(input_layer, out)
-    print(model.summary())
-
-    return model
-"""
 
 autoencoder = build_model()
 
