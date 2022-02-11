@@ -15,7 +15,7 @@ import os
 
 
 from tensorflow.keras.models import Sequential, Model
-from tensorflow.keras.layers import Input, Conv2D, Conv2DTranspose, MaxPooling2D, UpSampling2D
+from tensorflow.keras.layers import Input, BatchNormalization, Conv2D, Conv2DTranspose, MaxPooling2D, UpSampling2D
 from sklearn.model_selection import train_test_split
 from sklearn.neighbors import NearestNeighbors
 
@@ -63,7 +63,8 @@ EPOCHS = 1 # For testing
 # Build the model
 def build_model():
     input_layer = Input(shape=(32,32,1)) # The 32x32 size of the original input is pretty small so we will keep filters at 8
-    x = Conv2D(8,(3,3),activation='relu',padding='same')(input_layer) # Padding is the same throughout so output size matches image sizes for training the autoencoder (squeeze it then expand it to see if it encodes well)
+    x = BatchNormalization()(input_layer)
+    x = Conv2D(8,(3,3),activation='relu',padding='same')(x) # Padding is the same throughout so output size matches image sizes for training the autoencoder (squeeze it then expand it to see if it encodes well)
     #x = BatchNormalization()(x)
     x = MaxPooling2D(2)(x)
     x = Conv2D(16,(3,3),activation='relu',padding='same')(x)
