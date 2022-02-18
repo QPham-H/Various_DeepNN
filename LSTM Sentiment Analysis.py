@@ -7,10 +7,12 @@ Code by Quoc Pham
 import numpy as np
 import pandas as pd
 import nltk
+import re
 
 from bs4 import BeautifulSoup
 from keras.models import Model
 from keras.layers import Dense, Embedding, LSTM, Dropout
+from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
 from sklearn.preprocessing import LabelEncoder
 from nltk.corpus import stopwords
@@ -34,21 +36,23 @@ imdb_df['review'] = imdb_df['review'].apply(soup_get_text)
 
 # Rename column headers for later merging
 imdb_df.rename(columns={'review': 'text'}, inplace=True)
-print(f'IMDB dataframe columns: {imdb_df.columns.values}')    
 
+print(f'IMDB dataframe columns: {imdb_df.columns.values}')
+print(imdb_df.head(5))
 
 # Load the Amazon reviews dataset
 amazon_df = pd.read_csv('amazon_alexa.tsv', sep='\t')
 
-# Rename column headers for later merging
+# Rename column headers and change to positive negative labels for later merging
 amazon_df.rename(columns={'verified_reviews': 'text','feedback': 'sentiment'}, inplace=True)
+amazon_df['sentiment'] = amazon_df['sentiment'].apply(lambda x: 'positive' if x == 1 else 'negative')
 
 #amazon_df['sentiment'] = amazon_df.apply(lambda df: 'Positive' if df['rating'] >= 4 else 'Negative')  # axis 1 is to apply to each row
 
 # Use only the two relevant columns
 amazon_df = amazon_df[['text','sentiment']]
 print(f'Amazon dataframe columns: {amazon_df.columns.values}')      
-
+print(amazon_df.head(5))
 
 # Load the Twitter dataset
 twitter_df = pd.read_csv('Sentiment.csv')
@@ -56,35 +60,40 @@ twitter_df = pd.read_csv('Sentiment.csv')
 
 # Use only the two relevant columns
 twitter_df = twitter_df[['text','sentiment']]
+twitter_df = twitter_df[twitter_df.sentiment != 'Neutral']
+
+# Cleaning up the twitter data for merging later
+twitter_df['sentiment'] = twitter_df['sentiment'].str.lower()
+
+twitter_df['text'] = twitter_df['text'].apply(lambda x: re.sub(r'\bRT\b', '',x)) # Remove RT at the beginning of every tweet
 print(f'New twitter dataframe columns: {twitter_df.columns.values}')
+print(twitter_df.head(5))
 
 # Combine all datasets to one dataframe
 frames = [imdb_df,amazon_df,twitter_df]
-merged_df = pd.concat(frames)
+merged_df = pd.concat(frames, ignore_index=True)
 
 print(f'Merged dataframe columns: {merged_df.columns.values}')
 
-# Exploratory data analysis
-merged_df.describe()
-
 # Set stopwords to remove common but not useful words for analysis such as 'the', 'an'
 stopwords = set(stopwords.words('english'))
-merged_df['text'] = merged_df['text'].apply(lambda x: ''.join(x for x in x.split() if x not in stopwords))
-
-merged_df.head(10)
+merged_df['text'] = merged_df['text'].str.lower() # making all text lowercase to match stopwords better
+merged_df['text'] = merged_df['text'].apply(lambda x: ' '.join([word for word in x.split() if word not in (stopwords)]))
 
 # Remove digits, symbols, special characters, and htmls
-#merged_df['text'] = merged_df['text'].str.lower()
-merged_df['text'] = merged_df['text'].re.sub('[^a-zA-Z\s]', '') # Keep only letters 
+merged_df['text'] = merged_df['text'].apply(lambda x: re.sub('[^a-zA-Z\s]', '',x)) # Keep only letters 
 
-merged_df.describe()
+print(merged_df.head(5))
+
+# Exploratory data analysis
+print(merged_df.describe()) # Check that the sentiments labels have only 2 unique values
 
 # Labelencoder to encode positive and negative into binary
 labelencoder = LabelEncoder()
-labels = labelencoder.fit_transform(merged_df['sentiment'])
+labels = labelencoder.fit_transform(merged_df['sentiment'].values)
 
 # Tokenizer to encode words into a dictionary 
-tokenizer = Tokenizer(num_words = vocab, lower=True, split=' ', filters='!"#$%&()*+,-./:;<=>?@[\\]^_`{|}~\t\n')
+tokenizer = Tokenizer(num_words = vocab, split=' ', filters='!"#$%&()*+,-./:;<=>?@[\\]^_`{|}~\t\n')
 tokenizer.fit_on_texts(merged_df['text'])
 
 samples = tokenizer.texts_to_sequences(merged_df['text'])
