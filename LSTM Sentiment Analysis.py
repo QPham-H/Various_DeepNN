@@ -30,7 +30,7 @@ imdb_df['text'] = imdb_df['text'].BeautifulSoup('html.parser').get_text()
 print(f'IMDB dataframe columns: {imdb_df.columns}')    
 
 # Load the Amazon reviews dataset
-amazon_df = pd.read_csv('amazon_alexa.tsv',sep't')
+amazon_df = pd.read_csv('amazon_alexa.tsv',sep='t')
 amazon_df['sentiment'] = amazon_df.apply(lambda df: 'Positive' if df['rating'] >= 4 else 'Negative')  # axis 1 is to apply to each row
 
 print(f'Amazon dataframe columns: {amazon_df.columns}')      
