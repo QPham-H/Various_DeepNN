@@ -7,15 +7,22 @@ Code by Quoc Pham
 import numpy as np
 import pandas as pd
 
+from bs4 import BeautifulSoup
+from keras.model import Model
+from keras.layers import Dense, Embedding, LSTM, Dropout
+
 from nltk.corpus import stopwords
 
 # Constants for our datasets and model
-vocab = 5000 # Using the first x most used words aka vocab size
-max_words = 500 # Max text size
-
+vocab = 5000 # The first x most used words aka vocab size
+max_words = 500 # Max number of words in text (in order for Dense layer to connect to Embedding layer) 
+embedding_dim = 32 # Dimensions of vector to represent word in embedding layer
 
 # Load the IMDb dataset
 imdb_df = pd.read_csv('IMDB_Dataset.csv')
+
+# Remove the html elements
+imdb_df['text'] = imdb_df['text'].BeautifulSoup('html.parser').get_text()
 
 print(f'IMDB dataframe columns: {imdb_df.columns}')    
 
@@ -50,12 +57,31 @@ merged_df['text'] = merged_df['text'].apply(lambda x: ''.join(x for x in x.split
 
 merged_df.head(10)
 
-# Remove digits, symbols, stopwords, and htmls
-merged_df['text'] = merged_df['text'].str.lower()
+# Remove digits, symbols, special characters, and htmls
+#merged_df['text'] = merged_df['text'].str.lower()
 merged_df['text'] = merged_df['text'].re.sub('[^a-zA-Z\s]', '') # Keep only letters 
 
 merged_df.describe()
 
+# Tokenizer to encode words into a dictionary 
+tokenizer = Tokenizer(num_words = vocab, lower=True, split=' ', filters='!"#$%&()*+,-./:;<=>?@[\\]^_`{|}~\t\n')
+tokenizer.fit_on_texts(merged_df['text'].values.tolist())
 
+samples
+labels
+
+
+train_samples, test_samples, train_labels, test_labels = train_test_split(samples, labels, test_size=0.2)
+
+
+# Build the model
+def build_model():
+    input_layer = Embedding(vocab, embedding_dim, input_length=max_words) # Converts positive integer encoding of words as vectors into dimensional space where similiarity in meaning is represented by closeness in space
+    x = LSTM(32,dropout=0.2, recurrent_dropout=0.2)(input_layer) # Try relu for activation and output
+    out = Dense(1, activation='sigmoid')(x)
+
+    model = Model(input_layer, out)
+
+    return model
 
 
