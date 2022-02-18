@@ -10,13 +10,16 @@ import pandas as pd
 from bs4 import BeautifulSoup
 from keras.model import Model
 from keras.layers import Dense, Embedding, LSTM, Dropout
-
+from keras.preprocessing import pad_sequences
+from sklearn.preprocessing import LabelEncoder
 from nltk.corpus import stopwords
 
 # Constants for our datasets and model
 vocab = 5000 # The first x most used words aka vocab size
 max_words = 500 # Max number of words in text (in order for Dense layer to connect to Embedding layer) 
 embedding_dim = 32 # Dimensions of vector to represent word in embedding layer
+BATCH = 32
+EPOCHS = 1
 
 # Load the IMDb dataset
 imdb_df = pd.read_csv('IMDB_Dataset.csv')
@@ -63,14 +66,18 @@ merged_df['text'] = merged_df['text'].re.sub('[^a-zA-Z\s]', '') # Keep only lett
 
 merged_df.describe()
 
+# Labelencoder to encode positive and negative into binary
+labelencoder = LabelEncoder()
+labels = labelencoder.fit_transform(merged_df['sentiment'])
+
 # Tokenizer to encode words into a dictionary 
 tokenizer = Tokenizer(num_words = vocab, lower=True, split=' ', filters='!"#$%&()*+,-./:;<=>?@[\\]^_`{|}~\t\n')
-tokenizer.fit_on_texts(merged_df['text'].values.tolist())
+tokenizer.fit_on_texts(merged_df['text'])
 
-samples
-labels
+samples = tokenizer.texts_to_sequences(merged_df['text'])
+samples = pad_sequences(samples, padding = 'post', maxlen = max_words)
 
-
+# Create the training and test sets
 train_samples, test_samples, train_labels, test_labels = train_test_split(samples, labels, test_size=0.2)
 
 
@@ -82,6 +89,29 @@ def build_model():
 
     model = Model(input_layer, out)
 
+    print(model.summary())
+
     return model
 
+build_model()
 
+model.compile(
+    loss ='binary_crossentropy',
+    optimizer='adam',
+    metrics='acc'
+    )
+
+history = model.fit(
+    train_samples,
+    train_labels,
+    batch_size = BATCH,
+    epochs = EPOCHS
+    )
+
+loss, accuracy = model.evaluate(
+    test_samples,
+    test_labels
+    )
+
+print(f'This is the test loss: {loss}')
+print(f'This is the test accuracy: {accuracy}')
