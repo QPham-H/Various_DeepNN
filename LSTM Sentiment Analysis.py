@@ -6,11 +6,12 @@ Code by Quoc Pham
 
 import numpy as np
 import pandas as pd
+import nltk
 
 from bs4 import BeautifulSoup
-from keras.model import Model
+from keras.models import Model
 from keras.layers import Dense, Embedding, LSTM, Dropout
-from keras.preprocessing import pad_sequences
+from keras.preprocessing.sequence import pad_sequences
 from sklearn.preprocessing import LabelEncoder
 from nltk.corpus import stopwords
 
@@ -25,31 +26,43 @@ EPOCHS = 1
 imdb_df = pd.read_csv('IMDB_Dataset.csv')
 
 # Remove the html elements
-imdb_df['text'] = imdb_df['text'].BeautifulSoup('html.parser').get_text()
+def soup_get_text(text):
+    soup = BeautifulSoup(text,'html.parser')
+    return soup.get_text()
 
-print(f'IMDB dataframe columns: {imdb_df.columns}')    
+imdb_df['review'] = imdb_df['review'].apply(soup_get_text)
+
+# Rename column headers for later merging
+imdb_df.rename(columns={'review': 'text'}, inplace=True)
+print(f'IMDB dataframe columns: {imdb_df.columns.values}')    
+
 
 # Load the Amazon reviews dataset
-amazon_df = pd.read_csv('amazon_alexa.tsv',sep='t')
-amazon_df['sentiment'] = amazon_df.apply(lambda df: 'Positive' if df['rating'] >= 4 else 'Negative')  # axis 1 is to apply to each row
+amazon_df = pd.read_csv('amazon_alexa.tsv', sep='\t')
 
-print(f'Amazon dataframe columns: {amazon_df.columns}')      
+# Rename column headers for later merging
+amazon_df.rename(columns={'verified_reviews': 'text','feedback': 'sentiment'}, inplace=True)
+
+#amazon_df['sentiment'] = amazon_df.apply(lambda df: 'Positive' if df['rating'] >= 4 else 'Negative')  # axis 1 is to apply to each row
+
+# Use only the two relevant columns
+amazon_df = amazon_df[['text','sentiment']]
+print(f'Amazon dataframe columns: {amazon_df.columns.values}')      
+
 
 # Load the Twitter dataset
-twitter_df = pd.read_csv('Sentiment.cvs')
-print(f'Twitter dataframe columns: {twitter_df.columns}')
-
-twitter_df.describe()
+twitter_df = pd.read_csv('Sentiment.csv')
+#print(f'Twitter dataframe columns: {twitter_df.columns}')
 
 # Use only the two relevant columns
 twitter_df = twitter_df[['text','sentiment']]
-print(f'New twitter dataframe columns: {twitter_df.columns}')
+print(f'New twitter dataframe columns: {twitter_df.columns.values}')
 
 # Combine all datasets to one dataframe
 frames = [imdb_df,amazon_df,twitter_df]
 merged_df = pd.concat(frames)
 
-merged_df.head(10)
+print(f'Merged dataframe columns: {merged_df.columns.values}')
 
 # Exploratory data analysis
 merged_df.describe()
