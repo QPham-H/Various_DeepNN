@@ -1,5 +1,5 @@
 """
-Using three varieties of datasets to compile a general model for sentiment analysis
+End-to-end machine learning for Sentiment Analysis
 Code by Quoc Pham
 02.2022
 """
