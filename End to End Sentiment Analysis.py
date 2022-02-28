@@ -9,12 +9,10 @@ import pandas as pd
 import nltk
 import re
 
-from bs4 import BeautifulSoup
 from keras.models import Model
 from keras.layers import Dense, Embedding, LSTM, Dropout, Input, Flatten
 from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
-from sklearn.preprocessing import LabelEncoder
 from nltk.corpus import stopwords
 
 # Constants for our datasets and model
@@ -152,7 +150,7 @@ print(processed_df.head(5))
 ##samples = pad_sequences(samples, padding = 'post', maxlen = max_words)
 ##print(samples)
 
-# BUILDING AND TRAINING MODELS
+# BUILDING AND TRAINING THE MODELS
 # Create the training and held-out test sets with stratified sampling so we better represent the data's proportions
 from sklearn.model_selection import StratifiedShuffleSplit
 
@@ -172,8 +170,17 @@ print(f'Training distribution: {train_dist}')
 
 #print(train_samples)
 
-# Build the model
-def build_model():
+# Build the LSTM model
+def build_LSTM():
+    """
+    Builds an LSTM model for analysis
+
+    Arguments:
+        None
+    Returns:
+        model: an LSTM model
+    """
+
     input_layer = Input(shape=(max_words))
     x = Embedding(vocab, embedding_dim, input_length=max_words)(input_layer) # Converts positive integer encoding of words as vectors into dimensional space where similiarity in meaning is represented by closeness in space
     #x = LSTM(64,dropout=0.2, recurrent_dropout=0.2, return_sequences=True)(x) # Maybe try relu for activation and output
@@ -186,28 +193,56 @@ def build_model():
     model = Model(input_layer, out)
 
     print(model.summary())
-
     return model
 
-model = build_model()
+def compile_fit(model, train_set):
+    """
+    Compiles and fit the model on training data
 
-model.compile(
-    loss ='binary_crossentropy',
-    optimizer='adam',
-    metrics='acc'
-    )
+    Arguments:
+        model: neural network model
+        train_set: training set
+    Returns:
+        None
+    """
 
-history = model.fit(
-    train_samples,
-    train_labels,
-    batch_size = BATCH,
-    epochs = EPOCHS
-    )
+    model.compile(
+        loss ='binary_crossentropy',
+        optimizer='adam',
+        metrics='acc'
+        )
 
-loss, accuracy = model.evaluate(
-    test_samples,
-    test_labels
-    )
+    history = model.fit(
+        train_set[:,0],
+        train_set[:,1],
+        batch_size = BATCH,
+        epochs = EPOCHS
+        )
 
-print(f'This is the test loss: {loss}')
-print(f'This is the test accuracy: {accuracy}')
+def evaluate_model(model, test_set):
+    """
+    Compiles and fit the model on training data
+
+    Arguments:
+        model: neural network model
+        test_set: test set
+    Returns:
+        loss: loss for the test set
+        accuracy: accuracy for the test set
+    """
+
+    loss, accuracy = model.evaluate(
+        test_set[:,0],
+        test_set[:,1]
+        )
+
+    print(f'This is the test loss: {loss}')
+    print(f'This is the test accuracy: {accuracy}')
+    return loss, accuracy
+
+LSTM = build_LSTM()
+compile_fit(LSTM, train_set)
+loss, accuracy = evaluate_model(LSTM, test_set)
+
+# PICK THE BEST MODEL USING CROSS-VALIDATION
+
