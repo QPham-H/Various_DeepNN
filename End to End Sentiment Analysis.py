@@ -11,11 +11,11 @@ import re
 
 
 # Constants for our datasets and model
-vocab = 1000 # The first x most used words aka vocab size
-max_words = 1 # Max number of words in text (in order for Dense layer to connect to Embedding layer) 
-embedding_dim = 1 # Dimensions of vector to represent word in embedding layer
+vocab = 500 # The first x most used words aka vocab size
+max_words = 20 # Max number of words in text (in order for Dense layer to connect to Embedding layer) 
+embedding_dim = 5 # Dimensions of vector to represent word in embedding layer
 BATCH = 64
-EPOCHS = 1
+EPOCHS = 1 # Temporarily one due to slow computer
 
 
 # DATA COLLECTION
@@ -152,6 +152,10 @@ print(processed_df.head(5))
 # Create the training and held-out test sets with stratified sampling so we better represent the data's proportions
 from sklearn.model_selection import StratifiedShuffleSplit
 
+# Fix random seed for reproducibility
+seed = 33
+numpy.random.seed(seed)
+
 s_split = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=17) # Using a random seed here for the Grid Search 
 train_idx, test_idx =  split.split(processed_df['verified_reviews'],processed_df['feedback'])
 
@@ -181,7 +185,7 @@ from keras.layers import Dense, Embedding, LSTM, Dropout, Input, Flatten
 ##        self.model = build_LSTM(self.vocab,self.max_words,self.embedding_dim)
 ##    def fit(self, 
 
-def build_LSTM(vocab, max_words, embedding_dim):
+def build_LSTM(neurons=5, vocab, max_words, embedding_dim):
     """
     Builds an LSTM model for analysis
 
@@ -194,7 +198,7 @@ def build_LSTM(vocab, max_words, embedding_dim):
     input_layer = Input(shape=(max_words))
     x = Embedding(vocab, embedding_dim, input_length=max_words)(input_layer) # Converts positive integer encoding of words as vectors into dimensional space where similiarity in meaning is represented by closeness in space
     #x = LSTM(64,dropout=0.2, recurrent_dropout=0.2, return_sequences=True)(x) # Maybe try relu for activation and output
-    #x = LSTM(1,dropout=0.1)(x)# Stacked LSTM potentially allows the hidden state to operate at different time scales
+    x = LSTM(neurons,dropout=0.1)(x)# Stacked LSTM potentially allows the hidden state to operate at different time scales
     x = Flatten()(x)
     #x = Dense(16, activation='relu')(x)
     #x = Dropout(0.2)(x)
@@ -229,26 +233,26 @@ def compile_fit(model, train_set):
         epochs = EPOCHS
         )
 
-def evaluate_model(model, test_set):
-    """
-    Compiles and fit the model on training data
-
-    Arguments:
-        model: neural network model
-        test_set: test set
-    Returns:
-        loss: loss for the test set
-        accuracy: accuracy for the test set
-    """
-
-    loss, accuracy = model.evaluate(
-        test_set[:,0],
-        test_set[:,1]
-        )
-
-    print(f'This is the test loss: {loss}')
-    print(f'This is the test accuracy: {accuracy}')
-    return loss, accuracy
+##def evaluate_model(model, test_set):
+##    """
+##    Compiles and fit the model on training data
+##
+##    Arguments:
+##        model: neural network model
+##        test_set: test set
+##    Returns:
+##        loss: loss for the test set
+##        accuracy: accuracy for the test set
+##    """
+##
+##    loss, accuracy = model.evaluate(
+##        test_set[:,0],
+##        test_set[:,1]
+##        )
+##
+##    print(f'This is the test loss: {loss}')
+##    print(f'This is the test accuracy: {accuracy}')
+##    return loss, accuracy
 
 LSTM = build_LSTM()
 compile_fit(LSTM, train_set)
@@ -283,9 +287,55 @@ print(f'CV Score for LSTM:')
 LSTM_scores = cv_scores(LSTM, train_set)
 
 # HYPERPARAMETER TUNING
+# Now that we've chosen the best model, we'll tune the hyperparameters
 # In order to use sklearn's GridSearchCV function for testing hyperparameters, we first have to wrap our model with KerasClassifier
 from tf.keras.wrappers.scikit_learn import KerasClassifier
 from sklearn.model_selection import GridSearchCV
 
+model = KerasClassifier(
+    build_fn=build_LSTM,
+##    vocab=vocab,
+##    max_words=max_words,
+##    embedding_dim=embedding_dim,
+    batch_size = BATCH,
+    epochs = EPOCHS
+    )
 
-        
+# Define the grid search parameters
+param_grid = [{
+    'neurons' : [5, 10, 15, 20],
+    'vocab': [500, 1000, 2000],
+    'max_words' : [20, 40, 80],
+    'embedding_dim' : [5, 8, 10, 12]
+    }]
+
+grid = GridSearchCV(
+    model,
+    param_grid=param_grid,
+    scoring = 'accuracy', # defaults to accuracy
+    n_jobs = -1, # -1 means it'll use all the cores in the computer
+    cv = 3 # defaults to 3
+    )
+
+grid_results = grid.fit(train_set[:,0], train_set[:,1])
+
+print(f'Best score is: {grid_results.best_score_}')
+print(f'Best params is: {grid_results.best_params_}')
+
+cv_scores = grid_results.cv_results_
+for mean, params in zip(cv_scores['mean_test_score'],cv_scores['params']):
+    print(f'Mean: {mean} with {params}')
+
+# EVALUATE FINAL MODEL WITH HELD OUT TEST SET
+# Best configuration
+final_model = grid_results.best_estimator_
+
+# Final evaluation
+loss, accuracy = final_model.evaluate(
+    test_set[:,0],
+    test_set[:,1]
+    )
+
+print(f'This is the test loss: {loss}')
+print(f'This is the test accuracy: {accuracy}')
+return loss, accuracy
