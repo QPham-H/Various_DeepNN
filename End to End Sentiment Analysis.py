@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import nltk
 import re
+import tensorflow as tf
 
 
 # Constants for our datasets and model
@@ -161,15 +162,21 @@ seed = 33
 np.random.seed(seed)
 
 s_split = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=seed) # Using a random seed here for the Grid Search 
-train_idx, test_idx =  s_split.split(prepped_reviews, prepped_labels)
+##train_idx, test_idx =  s_split.split(prepped_reviews, prepped_labels)
+##
+##for train_idx, test_idx in zip(train_idx,test_idx):
+##    train_set = processed_df.loc[train_idx]
+##    test_set = processed_df.loc[test_idx]
 
-for train_idx, test_idx in zip(train_idx,test_idx):
-    train_set = processed_df.loc[train_idx]
-    test_set = processed_df.loc[test_idx]
+for train_idx, test_idx in s_split.split(prepped_reviews, prepped_labels):
+    train_set = prepped_reviews[train_idx]
+    train_labels = prepped_labels[train_idx]
+    test_set = prepped_reviews[test_idx]
+    test_labels = prepped_labels[train_idx]
 
-# Check training distribution
-train_dist = train_set.value_counts() / len(train_set)
-print(f'Training distribution: {train_dist}')
+### Check training distribution
+##train_dist = train_set.unique() / len(train_set)
+##print(f'Training distribution: {train_dist}')
 
 #train_samples, test_samples, train_labels, test_labels = train_test_split(samples, labels, test_size=0.2)
 
@@ -189,7 +196,7 @@ from keras.layers import Dense, Embedding, LSTM, Dropout, Input, Flatten
 ##        self.model = build_LSTM(self.vocab,self.max_words,self.embedding_dim)
 ##    def fit(self, 
 
-def build_LSTM(vocab, max_words, embedding_dim, neurons=5):
+def build_LSTM(vocab=200, max_words=20, embedding_dim=8, neurons=5):
     """
     Builds an LSTM model for analysis
 
@@ -210,10 +217,17 @@ def build_LSTM(vocab, max_words, embedding_dim, neurons=5):
 
     model = Model(input_layer, out)
 
-    print(model.summary())
+    #print(model.summary())
+
+    model.compile(
+    loss ='binary_crossentropy',
+    optimizer='adam',
+    metrics='acc'
+    )
+    
     return model
 
-def compile_fit(model, train_set):
+def compile_fit(model, train_set, train_labels):
     """
     Compiles and fit the model on training data
 
@@ -224,18 +238,14 @@ def compile_fit(model, train_set):
         None
     """
 
-    model.compile(
-        loss ='binary_crossentropy',
-        optimizer='adam',
-        metrics='acc'
-        )
-
     history = model.fit(
-        train_set[:,0],
-        train_set[:,1],
+        train_set,
+        train_labels,
         batch_size = BATCH,
         epochs = EPOCHS
         )
+
+    print(f'End of compile fit')
 
 ##def evaluate_model(model, test_set):
 ##    """
@@ -258,14 +268,30 @@ def compile_fit(model, train_set):
 ##    print(f'This is the test accuracy: {accuracy}')
 ##    return loss, accuracy
 
-LSTM = build_LSTM()
-compile_fit(LSTM, train_set)
+# A quick check on build and compile functions
+#LSTM = build_LSTM(vocab, max_words, embedding_dim)
+#compile_fit(LSTM, train_set, train_labels)
 #loss, accuracy = evaluate_model(LSTM, test_set)
 
 # PICK THE BEST MODEL USING CROSS-VALIDATION
+# In order to use sklearn on our model, first we have to wrap our model with KerasClassifier
+from scikeras.wrappers import KerasClassifier
+
+LSTM_wrapped = KerasClassifier(
+    build_fn=build_LSTM,
+    vocab = vocab,
+    max_words = max_words,
+    embedding_dim = embedding_dim,
+    batch_size = BATCH,
+    epochs = EPOCHS,
+    random_state = seed,
+    optimizer = 'adam',
+    verbose = 0
+    )
+
 from sklearn.model_selection import cross_val_score
 
-def cv_scores(model, train_set):
+def cv_scores(model, train_set, train_labels):
     """
     Evaluate score by cross-validation
 
@@ -278,8 +304,8 @@ def cv_scores(model, train_set):
 
     scores = cross_val_score(
         model,
-        train_set[:,0],
-        train_set[:,1],
+        train_set,
+        train_labels,
         scoring = 'accuracy',
         cv = 10
         )
@@ -287,25 +313,16 @@ def cv_scores(model, train_set):
     print(f'This is the average score of the cv: {scores.mean()}')
     return scores
 
-print(f'CV Score for LSTM:')
-LSTM_scores = cv_scores(LSTM, train_set)
 
-print(throwerror)
+LSTM_scores = cv_scores(LSTM_wrapped, train_set, train_labels)
+print(f'CV Score for LSTM: {LSTM_scores}')
+
+#print(throwerror)
 
 # HYPERPARAMETER TUNING
 # Now that we've chosen the best model, we'll tune the hyperparameters
-# In order to use sklearn's GridSearchCV function for testing hyperparameters, we first have to wrap our model with KerasClassifier
-from tf.keras.wrappers.scikit_learn import KerasClassifier
 from sklearn.model_selection import GridSearchCV
 
-model = KerasClassifier(
-    build_fn=build_LSTM,
-##    vocab=vocab,
-##    max_words=max_words,
-##    embedding_dim=embedding_dim,
-    batch_size = BATCH,
-    epochs = EPOCHS
-    )
 
 # Define the grid search parameters
 param_grid = [{
