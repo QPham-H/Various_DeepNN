@@ -9,11 +9,6 @@ import pandas as pd
 import nltk
 import re
 
-from keras.models import Model
-from keras.layers import Dense, Embedding, LSTM, Dropout, Input, Flatten
-from keras.preprocessing.text import Tokenizer
-from keras.preprocessing.sequence import pad_sequences
-from nltk.corpus import stopwords
 
 # Constants for our datasets and model
 vocab = 1000 # The first x most used words aka vocab size
@@ -46,6 +41,9 @@ print(f'Label distribution: {label_dist}')
 # We can see that feedback is the data's binary indication of sentiment where 0=negative and 1=positive
 # Create new columns by using a class to practice data preparation with a pipeline
 from sklearn.base import TransformerMixin
+from keras.preprocessing.text import Tokenizer
+from keras.preprocessing.sequence import pad_sequences
+from nltk.corpus import stopwords
 
 ##class AddSentiments(TransformerMixin):
 ##    def fit(self, X, y=None):
@@ -170,8 +168,20 @@ print(f'Training distribution: {train_dist}')
 
 #print(train_samples)
 
-# Build the LSTM model
-def build_LSTM():
+# Build a LSTM model
+from keras.models import Model
+from keras.layers import Dense, Embedding, LSTM, Dropout, Input, Flatten
+##from sklearn.base import BaseEstimator
+##
+##class LSTM_model(BaseEstimator):
+##    def __init__(self, vocab, max_words, embedding_dim):
+##        self.vocab = vocab
+##        self.max_words = max_words
+##        self.embedding_dim = embedding_dim
+##        self.model = build_LSTM(self.vocab,self.max_words,self.embedding_dim)
+##    def fit(self, 
+
+def build_LSTM(vocab, max_words, embedding_dim):
     """
     Builds an LSTM model for analysis
 
@@ -242,7 +252,40 @@ def evaluate_model(model, test_set):
 
 LSTM = build_LSTM()
 compile_fit(LSTM, train_set)
-loss, accuracy = evaluate_model(LSTM, test_set)
+#loss, accuracy = evaluate_model(LSTM, test_set)
 
 # PICK THE BEST MODEL USING CROSS-VALIDATION
+from sklearn.model_selection import cross_val_score
 
+def cv_scores(model, train_set):
+    """
+    Evaluate score by cross-validation
+
+    Arguments:
+        model: neural network model
+        train_set: training set
+    Returns:
+        scores: an array of scores for each run
+    """
+
+    scores = cross_val_score(
+        model,
+        train_set[:,0],
+        train_set[:,1],
+        scoring = 'accuracy',
+        cv = 10
+        )
+
+    print(f'This is the average score of the cv: {scores.mean()}')
+    return scores
+
+print(f'CV Score for LSTM:')
+LSTM_scores = cv_scores(LSTM, train_set)
+
+# HYPERPARAMETER TUNING
+# In order to use sklearn's GridSearchCV function for testing hyperparameters, we first have to wrap our model with KerasClassifier
+from tf.keras.wrappers.scikit_learn import KerasClassifier
+from sklearn.model_selection import GridSearchCV
+
+
+        
