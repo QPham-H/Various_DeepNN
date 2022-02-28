@@ -59,8 +59,8 @@ class ReviewPrep(TransformerMixin):
     def fit(self, X, y=None):
         return self
     def transform(self, X):
-        X[:,3] = X[:,3].apply(lambda x: ' '.join([word for word in x.split() if word not in (self.stopwords)])) # reviews are idx = 3
-        X[:,3] = X[:,3].apply(lambda x: re.sub('[^a-zA-Z\s]', '',x)) # Keep only letters
+        X['verified_reviews'] = X['verified_reviews'].apply(lambda x: ' '.join([word for word in x.split() if word not in (self.stopwords)])) # reviews are idx = 3
+        X['verified_reviews'] = X['verified_reviews'].apply(lambda x: re.sub('[^a-zA-Z\s]', '',x)) # Keep only letters
         return X
 
 class TokenReview(TransformerMixin):
@@ -69,12 +69,12 @@ class TokenReview(TransformerMixin):
         self.max_words = max_words
         self.tokenizer = Tokenizer(num_words = self.vocab, split=' ', filters='!"#$%&()*+,-./:;<=>?@[\\]^_`{|}~\t\n')
     def fit(self, X, y=None):
-        self.tokenizer.fit_on_texts(X)
+        self.tokenizer.fit_on_texts(X['verified_reviews'])
         return self
     def transform(self, X):
-        seq = self.tokenizer.texts_to_sequences(X[:,3])
-        seq = pad_sequence(seq, padding='post', maxlen=max_words)
-        return seq
+        X['verified_reviews'] = self.tokenizer.texts_to_sequences(X['verified_reviews'])
+        X['verified_reviews'] = pad_sequences(X['verified_reviews'], padding='post', maxlen=max_words)
+        return X
 
 #amazon_df['sentiment'] = amazon_df['sentiment'].apply(lambda x: 'positive' if x == 1 else 'negative')
 
@@ -101,40 +101,44 @@ def review_pipeline(stopwords, vocab, max_words):
     return text_pipeline
     
 
-def pipeline(data):
+def pipeline(data, stopwords, vocab, max_words):
     """
     Transformation pipeline for the data
 
     Arguments:
         data: original data
     Returns:
-        prepped_data: fully transformed data
+        prepped_data: fully transformed review data
+        prepped_labels: review labels
     """
-
-    two_columns = data[['verified_reviews','feedback']] # Extract only the two columns we're using
 
 ##    review_pipeline = Pipeline([
 ##        ('add_sent', AddSentiment())
 ##        ])
+
     
-    all_transformers = ColumnTransformers([
+    all_transformers = ColumnTransformer([
 ##        ('add_sent', AddSentiment(), ['feedback']),
-        ('prep_rev', review_pipeline(), ['verified_reviews'])
+        ('prep_rev', review_pipeline(stopwords, vocab, max_words), ['verified_reviews'])
         ])
 
-    prepped_data = all_transformers.fit_transform(two_columns)
-    return prepped_data
+    prepped_reviews = all_transformers.fit_transform(data)
+##    print(f'prepped review shape :{prepped_reviews.shape}')
+##    print(f'prepped reviews :{prepped_reviews}')
+
+    prepped_labels = data['feedback'].to_numpy()
+    
+    return prepped_reviews, prepped_labels
 
 # Set stopwords to remove common but not useful words for analysis such as 'the', 'an'
 stopwords = set(stopwords.words('english'))
 
 # Call the pipeline on the original dataset
-processed_df = pipeline(amazon_df, stopwords)
+prepped_reviews, prepped_labels = pipeline(amazon_df, stopwords, vocab, max_words)
 
 # Quick check to see everything working
-print(f'Amazon dataframe columns: {processed_df.columns.values}')      
-print(processed_df.head(5))
-
+print(f'Prepped data sequence: {prepped_reviews.shape}')
+print(f'Prepped labels: {prepped_labels.shape}')      
 
 ### Labelencoder to encode positive and negative into binary
 ##labelencoder = LabelEncoder()
@@ -154,10 +158,10 @@ from sklearn.model_selection import StratifiedShuffleSplit
 
 # Fix random seed for reproducibility
 seed = 33
-numpy.random.seed(seed)
+np.random.seed(seed)
 
-s_split = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=17) # Using a random seed here for the Grid Search 
-train_idx, test_idx =  split.split(processed_df['verified_reviews'],processed_df['feedback'])
+s_split = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=seed) # Using a random seed here for the Grid Search 
+train_idx, test_idx =  s_split.split(prepped_reviews, prepped_labels)
 
 for train_idx, test_idx in zip(train_idx,test_idx):
     train_set = processed_df.loc[train_idx]
@@ -185,7 +189,7 @@ from keras.layers import Dense, Embedding, LSTM, Dropout, Input, Flatten
 ##        self.model = build_LSTM(self.vocab,self.max_words,self.embedding_dim)
 ##    def fit(self, 
 
-def build_LSTM(neurons=5, vocab, max_words, embedding_dim):
+def build_LSTM(vocab, max_words, embedding_dim, neurons=5):
     """
     Builds an LSTM model for analysis
 
@@ -286,6 +290,8 @@ def cv_scores(model, train_set):
 print(f'CV Score for LSTM:')
 LSTM_scores = cv_scores(LSTM, train_set)
 
+print(throwerror)
+
 # HYPERPARAMETER TUNING
 # Now that we've chosen the best model, we'll tune the hyperparameters
 # In order to use sklearn's GridSearchCV function for testing hyperparameters, we first have to wrap our model with KerasClassifier
@@ -338,4 +344,4 @@ loss, accuracy = final_model.evaluate(
 
 print(f'This is the test loss: {loss}')
 print(f'This is the test accuracy: {accuracy}')
-return loss, accuracy
+
