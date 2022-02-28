@@ -333,14 +333,14 @@ param_grid = [{
     }]
 
 grid = GridSearchCV(
-    model,
+    LSTM_wrapped,
     param_grid=param_grid,
     scoring = 'accuracy', # defaults to accuracy
     n_jobs = -1, # -1 means it'll use all the cores in the computer
     cv = 3 # defaults to 3
     )
 
-grid_results = grid.fit(train_set[:,0], train_set[:,1])
+grid_results = grid.fit(train_set, train_labels)
 
 print(f'Best score is: {grid_results.best_score_}')
 print(f'Best params is: {grid_results.best_params_}')
@@ -355,8 +355,8 @@ final_model = grid_results.best_estimator_
 
 # Final evaluation
 loss, accuracy = final_model.evaluate(
-    test_set[:,0],
-    test_set[:,1]
+    test_set,
+    test_labels
     )
 
 print(f'This is the test loss: {loss}')
