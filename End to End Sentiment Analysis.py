@@ -6,14 +6,8 @@ Code by Quoc Pham
 
 import numpy as np
 import pandas as pd
-import nltk
-import re
-import tensorflow as tf
-
 
 # Constants for our datasets and model
-vocab = 500 # The first x most used words aka vocab size
-max_words = 20 # Max number of words in text (in order for Dense layer to connect to Embedding layer) 
 embedding_dim = 5 # Dimensions of vector to represent word in embedding layer
 BATCH = 64
 EPOCHS = 1 # Temporarily one due to slow computer
@@ -29,29 +23,22 @@ print(f'Data info: {amazon_df.info()}')
 print(amazon_df.head(5))
 
 # Check for null values
-amazon_df.isnull().sum()
+print(amazon_df.isnull().sum())
 
 # Check the distribution in the feedback column
 label_dist = amazon_df['feedback'].value_counts()/len(amazon_df)
 print(f'Label distribution: {label_dist}')
 
 # DATA PREPARATION
-# Rename column headers and change the feedback to positive/negative labels 
-#amazon_df.rename(columns={'verified_reviews': 'text', inplace=True)
-
 # We can see that feedback is the data's binary indication of sentiment where 0=negative and 1=positive
 # Create new columns by using a class to practice data preparation with a pipeline
+import nltk
+import re
+
 from sklearn.base import TransformerMixin
 from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
 from nltk.corpus import stopwords
-
-##class AddSentiments(TransformerMixin):
-##    def fit(self, X, y=None):
-##        return self
-##    def transform(self, X):
-##        sentiment = 'positive' if X[:,4] == 1 else 'negative' # Feedback column is idx = 4
-##        return np.c_[X, sentiment]
 
 # Also create a class transformer to clean up the reviews
 class ReviewPrep(TransformerMixin):
@@ -102,7 +89,7 @@ def review_pipeline(stopwords, vocab, max_words):
     return text_pipeline
     
 
-def pipeline(data, stopwords, vocab, max_words):
+def full_pipeline(data, stopwords, vocab, max_words):
     """
     Transformation pipeline for the data
 
@@ -113,88 +100,35 @@ def pipeline(data, stopwords, vocab, max_words):
         prepped_labels: review labels
     """
 
-##    review_pipeline = Pipeline([
-##        ('add_sent', AddSentiment())
-##        ])
-
     
     all_transformers = ColumnTransformer([
-##        ('add_sent', AddSentiment(), ['feedback']),
         ('prep_rev', review_pipeline(stopwords, vocab, max_words), ['verified_reviews'])
         ])
 
     prepped_reviews = all_transformers.fit_transform(data)
-##    print(f'prepped review shape :{prepped_reviews.shape}')
-##    print(f'prepped reviews :{prepped_reviews}')
-
     prepped_labels = data['feedback'].to_numpy()
     
     return prepped_reviews, prepped_labels
 
 # Set stopwords to remove common but not useful words for analysis such as 'the', 'an'
 stopwords = set(stopwords.words('english'))
+vocab = 500 # The first x most used words aka vocab size
+max_words = 20 # Max number of words in text (in order for Dense layer to connect to Embedding layer)
 
 # Call the pipeline on the original dataset
-prepped_reviews, prepped_labels = pipeline(amazon_df, stopwords, vocab, max_words)
+prepped_reviews, prepped_labels = full_pipeline(amazon_df, stopwords, vocab, max_words)
 
 # Quick check to see everything working
-print(f'Prepped data sequence: {prepped_reviews.shape}')
-print(f'Prepped labels: {prepped_labels.shape}')      
+print(f'Prepped reviews sequence shape: {prepped_reviews.shape}')
+print(f'Prepped labels shape: {prepped_labels.shape}')
+print(f'Prepped data: {prepped_reviews}')
 
-### Labelencoder to encode positive and negative into binary
-##labelencoder = LabelEncoder()
-##labels = labelencoder.fit_transform(merged_df['sentiment'].values)
-
-# Tokenizer to encode words into a dictionary 
-##tokenizer = Tokenizer(num_words = vocab, split=' ', filters='!"#$%&()*+,-./:;<=>?@[\\]^_`{|}~\t\n')
-##tokenizer.fit_on_texts(merged_df['text'])
-##
-##samples = tokenizer.texts_to_sequences(merged_df['text'])
-##samples = pad_sequences(samples, padding = 'post', maxlen = max_words)
-##print(samples)
 
 # BUILDING AND TRAINING THE MODELS
-# Create the training and held-out test sets with stratified sampling so we better represent the data's proportions
-from sklearn.model_selection import StratifiedShuffleSplit
-
-# Fix random seed for reproducibility
-seed = 33
-np.random.seed(seed)
-
-s_split = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=seed) # Using a random seed here for the Grid Search 
-##train_idx, test_idx =  s_split.split(prepped_reviews, prepped_labels)
-##
-##for train_idx, test_idx in zip(train_idx,test_idx):
-##    train_set = processed_df.loc[train_idx]
-##    test_set = processed_df.loc[test_idx]
-
-for train_idx, test_idx in s_split.split(prepped_reviews, prepped_labels):
-    train_set = prepped_reviews[train_idx]
-    train_labels = prepped_labels[train_idx]
-    test_set = prepped_reviews[test_idx]
-    test_labels = prepped_labels[train_idx]
-
-### Check training distribution
-##train_dist = train_set.unique() / len(train_set)
-##print(f'Training distribution: {train_dist}')
-
-#train_samples, test_samples, train_labels, test_labels = train_test_split(samples, labels, test_size=0.2)
-
-
-#print(train_samples)
 
 # Build a LSTM model
 from keras.models import Model
 from keras.layers import Dense, Embedding, LSTM, Dropout, Input, Flatten
-##from sklearn.base import BaseEstimator
-##
-##class LSTM_model(BaseEstimator):
-##    def __init__(self, vocab, max_words, embedding_dim):
-##        self.vocab = vocab
-##        self.max_words = max_words
-##        self.embedding_dim = embedding_dim
-##        self.model = build_LSTM(self.vocab,self.max_words,self.embedding_dim)
-##    def fit(self, 
 
 def build_LSTM(vocab=200, max_words=20, embedding_dim=8, neurons=5):
     """
@@ -247,31 +181,26 @@ def compile_fit(model, train_set, train_labels):
 
     print(f'End of compile fit')
 
-##def evaluate_model(model, test_set):
-##    """
-##    Compiles and fit the model on training data
-##
-##    Arguments:
-##        model: neural network model
-##        test_set: test set
-##    Returns:
-##        loss: loss for the test set
-##        accuracy: accuracy for the test set
-##    """
-##
-##    loss, accuracy = model.evaluate(
-##        test_set[:,0],
-##        test_set[:,1]
-##        )
-##
-##    print(f'This is the test loss: {loss}')
-##    print(f'This is the test accuracy: {accuracy}')
-##    return loss, accuracy
 
 # A quick check on build and compile functions
 #LSTM = build_LSTM(vocab, max_words, embedding_dim)
 #compile_fit(LSTM, train_set, train_labels)
 #loss, accuracy = evaluate_model(LSTM, test_set)
+
+# Create the training and held-out test sets with stratified sampling so we better represent the data's proportions
+from sklearn.model_selection import StratifiedShuffleSplit
+
+# Fix random seed for reproducibility
+seed = 33
+np.random.seed(seed)
+
+s_split = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=seed) # Using a random seed here for the Grid Search 
+
+for train_idx, test_idx in s_split.split(prepped_reviews, prepped_labels):
+    train_set = prepped_reviews[train_idx]
+    train_labels = prepped_labels[train_idx]
+    test_set = prepped_reviews[test_idx]
+    test_labels = prepped_labels[train_idx]
 
 # PICK THE BEST MODEL USING CROSS-VALIDATION
 # In order to use sklearn on our model, first we have to wrap our model with KerasClassifier
@@ -279,6 +208,7 @@ from scikeras.wrappers import KerasClassifier
 
 LSTM_wrapped = KerasClassifier(
     build_fn=build_LSTM,
+    neurons = 5,
     vocab = vocab,
     max_words = max_words,
     embedding_dim = embedding_dim,
@@ -328,7 +258,6 @@ from sklearn.model_selection import GridSearchCV
 param_grid = [{
     'neurons' : [5, 10, 15, 20],
     'vocab': [500, 1000, 2000],
-    'max_words' : [20, 40, 80],
     'embedding_dim' : [5, 8, 10, 12]
     }]
 
@@ -342,12 +271,13 @@ grid = GridSearchCV(
 
 grid_results = grid.fit(train_set, train_labels)
 
+cv_scores = grid_results.cv_results_
+for mean, params in zip(cv_scores['mean_test_score'],cv_scores['params']):
+    print(f'Mean: {mean} with {params}')+
+
 print(f'Best score is: {grid_results.best_score_}')
 print(f'Best params is: {grid_results.best_params_}')
 
-cv_scores = grid_results.cv_results_
-for mean, params in zip(cv_scores['mean_test_score'],cv_scores['params']):
-    print(f'Mean: {mean} with {params}')
 
 # EVALUATE FINAL MODEL WITH HELD OUT TEST SET
 # Best configuration
@@ -361,4 +291,5 @@ loss, accuracy = final_model.evaluate(
 
 print(f'This is the test loss: {loss}')
 print(f'This is the test accuracy: {accuracy}')
+
 
