@@ -8,7 +8,6 @@ import numpy as np
 import pandas as pd
 
 # Constants for our datasets and model
-embedding_dim = 5 # Dimensions of vector to represent word in embedding layer
 BATCH = 64
 EPOCHS = 1 # Temporarily one due to slow computer
 
@@ -114,6 +113,7 @@ def full_pipeline(data, stopwords, vocab, max_words):
 stopwords = set(stopwords.words('english'))
 vocab = 500 # The first x most used words aka vocab size
 max_words = 20 # Max number of words in text (in order for Dense layer to connect to Embedding layer)
+embedding_dim = 5 # Dimensions of vector to represent word in embedding layer
 
 # Call the pipeline on the original dataset
 prepped_reviews, prepped_labels = full_pipeline(amazon_df, stopwords, vocab, max_words)
@@ -130,7 +130,7 @@ print(f'Prepped data: {prepped_reviews}')
 from keras.models import Model
 from keras.layers import Dense, Embedding, LSTM, Dropout, Input, Flatten
 
-def build_LSTM(vocab=200, max_words=20, embedding_dim=8, neurons=5):
+def build_LSTM(vocab=200, max_words=20, embedding_dim=8, neurons=20):
     """
     Builds an LSTM model for analysis
 
@@ -144,14 +144,12 @@ def build_LSTM(vocab=200, max_words=20, embedding_dim=8, neurons=5):
     x = Embedding(vocab, embedding_dim, input_length=max_words)(input_layer) # Converts positive integer encoding of words as vectors into dimensional space where similiarity in meaning is represented by closeness in space
     #x = LSTM(64,dropout=0.2, recurrent_dropout=0.2, return_sequences=True)(x) # Maybe try relu for activation and output
     x = LSTM(neurons,dropout=0.1)(x)# Stacked LSTM potentially allows the hidden state to operate at different time scales
-    x = Flatten()(x)
+    #x = Flatten()(x)
     #x = Dense(16, activation='relu')(x)
     #x = Dropout(0.2)(x)
     out = Dense(1, activation='sigmoid')(x)
 
     model = Model(input_layer, out)
-
-    #print(model.summary())
 
     model.compile(
     loss ='binary_crossentropy',
@@ -160,32 +158,6 @@ def build_LSTM(vocab=200, max_words=20, embedding_dim=8, neurons=5):
     )
     
     return model
-
-def compile_fit(model, train_set, train_labels):
-    """
-    Compiles and fit the model on training data
-
-    Arguments:
-        model: neural network model
-        train_set: training set
-    Returns:
-        None
-    """
-
-    history = model.fit(
-        train_set,
-        train_labels,
-        batch_size = BATCH,
-        epochs = EPOCHS
-        )
-
-    print(f'End of compile fit')
-
-
-# A quick check on build and compile functions
-#LSTM = build_LSTM(vocab, max_words, embedding_dim)
-#compile_fit(LSTM, train_set, train_labels)
-#loss, accuracy = evaluate_model(LSTM, test_set)
 
 # Create the training and held-out test sets with stratified sampling so we better represent the data's proportions
 from sklearn.model_selection import StratifiedShuffleSplit
@@ -200,14 +172,14 @@ for train_idx, test_idx in s_split.split(prepped_reviews, prepped_labels):
     train_set = prepped_reviews[train_idx]
     train_labels = prepped_labels[train_idx]
     test_set = prepped_reviews[test_idx]
-    test_labels = prepped_labels[train_idx]
+    test_labels = prepped_labels[test_idx]
 
 # PICK THE BEST MODEL USING CROSS-VALIDATION
 # In order to use sklearn on our model, first we have to wrap our model with KerasClassifier
 from scikeras.wrappers import KerasClassifier
 
 LSTM_wrapped = KerasClassifier(
-    build_fn=build_LSTM,
+    model=build_LSTM,
     neurons = 5,
     vocab = vocab,
     max_words = max_words,
@@ -245,14 +217,13 @@ def cv_scores(model, train_set, train_labels):
 
 
 LSTM_scores = cv_scores(LSTM_wrapped, train_set, train_labels)
-print(f'CV Score for LSTM: {LSTM_scores}')
+print('CV Score for LSTM:')
+print(LSTM_scores)
 
-#print(throwerror)
 
 # HYPERPARAMETER TUNING
 # Now that we've chosen the best model, we'll tune the hyperparameters
 from sklearn.model_selection import GridSearchCV
-
 
 # Define the grid search parameters
 param_grid = [{
@@ -273,7 +244,7 @@ grid_results = grid.fit(train_set, train_labels)
 
 cv_scores = grid_results.cv_results_
 for mean, params in zip(cv_scores['mean_test_score'],cv_scores['params']):
-    print(f'Mean: {mean} with {params}')+
+    print(f'Mean: {mean} with {params}')
 
 print(f'Best score is: {grid_results.best_score_}')
 print(f'Best params is: {grid_results.best_params_}')
@@ -284,12 +255,10 @@ print(f'Best params is: {grid_results.best_params_}')
 final_model = grid_results.best_estimator_
 
 # Final evaluation
-loss, accuracy = final_model.evaluate(
-    test_set,
-    test_labels
+final_pred = final_model.predict(
+    test_set
     )
 
-print(f'This is the test loss: {loss}')
-print(f'This is the test accuracy: {accuracy}')
+final_acc = np.mean(test_labels == final_pred)
 
-
+print(f'This is the test accuracy: {final_acc}')
